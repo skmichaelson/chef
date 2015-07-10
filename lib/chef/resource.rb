@@ -685,7 +685,7 @@ class Chef
     # The provider class for this resource.
     #
     # If `action :x do ... end` has been declared on this resource or its
-    # superclasses, this will return the `action_provider_class`.
+    # superclasses, this will return the `action_class`.
     #
     # If this is not set, `provider_for_action` will dynamically determine the
     # provider.
@@ -696,7 +696,7 @@ class Chef
     #
     # @return The provider class for this resource.
     #
-    # @see Chef::Resource.action_provider_class
+    # @see Chef::Resource.action_class
     #
     def provider(arg=nil)
       klass = if arg.kind_of?(String) || arg.kind_of?(Symbol)
@@ -705,7 +705,7 @@ class Chef
         arg
       end
       set_or_return(:provider, klass, kind_of: [ Class ]) ||
-        self.class.action_provider_class
+        self.class.action_class
     end
     def provider=(arg)
       provider(arg)
@@ -1368,13 +1368,14 @@ class Chef
     #
     def self.action(action, &recipe_block)
       action = action.to_sym
-      new_action_provider_class.action(action, &recipe_block)
+      declare_action_class
+      action_class.action(action, &recipe_block)
       self.allowed_actions += [ action ]
       default_action action if Array(default_action) == [:nothing]
     end
 
     #
-    # The action provider class is an automatic `Provider` created to handle
+    # The action class is an automatic `Provider` created to handle
     # actions declared by `action :x do ... end`.
     #
     # This class will be returned by `resource.provider` if `resource.provider`
@@ -1383,39 +1384,43 @@ class Chef
     #
     # If the user has not declared actions on this class or its superclasses
     # using `action :x do ... end`, then there is no need for this class and
-    # `action_provider_class` will be `nil`.
+    # `action_class` will be `nil`.
     #
     # @api private
     #
-    def self.action_provider_class
-      @action_provider_class ||
+    def self.action_class
+      @action_class ||
         # If the superclass needed one, then we need one as well.
-        if superclass.respond_to?(:action_provider_class) && superclass.action_provider_class
-          new_action_provider_class
+        if superclass.respond_to?(:action_class) && superclass.action_class
+          declare_action_class
         end
     end
 
     #
-    # Ensure the action provider class actually gets created. This is called
+    # Ensure the action class actually gets created. This is called
     # when the user does `action :x do ... end`.
     #
+    # If a block is passed, it is run inside the action_class.
+    #
     # @api private
-    def self.new_action_provider_class
-      return @action_provider_class if @action_provider_class
+    def self.declare_action_class(&block)
+      if !@action_class
+        if superclass.respond_to?(:action_class)
+          base_provider = superclass.action_class
+        end
+        base_provider ||= Chef::Provider
 
-      if superclass.respond_to?(:action_provider_class)
-        base_provider = superclass.action_provider_class
+        resource_class = self
+        @action_class = Class.new(base_provider) do
+          use_inline_resources
+          include_resource_dsl true
+          define_singleton_method(:to_s) { "#{resource_class} action class" }
+          define_singleton_method(:inspect) { to_s }
+          define_method(:load_current_resource) {}
+        end
       end
-      base_provider ||= Chef::Provider
-
-      resource_class = self
-      @action_provider_class = Class.new(base_provider) do
-        use_inline_resources
-        include_resource_dsl true
-        define_singleton_method(:to_s) { "#{resource_class} action provider" }
-        define_singleton_method(:inspect) { to_s }
-        define_method(:load_current_resource) {}
-      end
+      @action_class.class_eval(&block) if block
+      @action_class
     end
 
     #
