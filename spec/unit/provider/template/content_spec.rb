@@ -75,4 +75,10 @@ describe Chef::Provider::Template::Content do
     expect(IO.read(content.tempfile.path)).to eq("slappiness is a warm gun")
   end
 
+  it "node subtrees sent into the variables argument renders correctly" do
+    allow(new_resource).to receive(:source).and_return("render_test.conf.erb")
+    run_context.node.normal[:stuff][:vm][:foo] = "foo"
+    allow(new_resource).to receive(:variables).and_return(run_context.node[:stuff])
+    expect(IO.read(content.tempfile.path)).to eq("node[:stuff][:vm][:foo] is foo")
+  end
 end
