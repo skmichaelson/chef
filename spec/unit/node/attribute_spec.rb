@@ -248,6 +248,7 @@ describe Chef::Node::Attribute do
     it "acts like in array in puts when it is an array with values" do
       out = StringIO.new
       @attributes.default['honey'] = [ 'diary', 'arithmetic' ]
+      pp @attributes
       out.puts @attributes['honey']
       expect(out.string).to eql("diary\narithmetic\n")
     end
