@@ -1,9 +1,13 @@
 language: ruby
 cache: bundler
-
+sudo: required
+services:
+  - docker
 # Early warning system to catch if Rubygems breaks something
 before_install:
-  gem update --system
+  - gem update --system
+  - gem uninstall -x -a bundler
+  - gem install bundler -v 1.7.6
 
 branches:
   only:
